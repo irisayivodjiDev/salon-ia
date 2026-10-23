@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src",
+    "mock",
+    "tp1",
+    "tp2",
+    "tp3",
+    "tp4",
+    "tp5",
+    "projet",
+    "optA-couts",
+    "optB-eval",
+    "optC-agents",
+    "optD-multimodal"
+  ],
+  "exclude": [
+    "**/public/**"
+  ]
+}

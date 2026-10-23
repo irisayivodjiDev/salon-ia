@@ -1,0 +1,97 @@
+<!doctype html>
+<!-- Page fournie : rien à modifier. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le Salon</title>
+<style>
+  :root { --ink:#1b1f2a; --paper:#f6f3ee; --accent:#e8702a; --muted:#6b7080; --line:#e2ddd4; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--paper); color:var(--ink); height:100vh; display:grid; grid-template-rows:auto 1fr auto; }
+  header { background:var(--ink); color:#fff; padding:10px 18px; display:flex; gap:16px; align-items:center; }
+  header strong { font-family:Georgia, serif; font-size:20px; }
+  #users { font-size:13px; opacity:.8; flex:1; }
+  #queue { font-size:12px; background:var(--accent); padding:2px 10px; border-radius:99px; display:none; }
+  main { overflow:auto; padding:16px 18px; display:flex; flex-direction:column; gap:6px; }
+  .line { max-width:80%; }
+  .from { font-weight:600; margin-right:6px; }
+  .salon { color:var(--muted); font-style:italic; font-size:13px; }
+  .ia { background:#fff; border-left:4px solid var(--accent); padding:8px 12px; border-radius:6px; white-space:pre-wrap; }
+  .ia .meta { display:block; font-size:12px; color:var(--muted); margin-top:4px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:12px 16px; }
+  .card h4 { margin:0 0 6px; font-family:Georgia, serif; }
+  .card ul { margin:4px 0 8px 18px; padding:0; }
+  .err { color:#b33; font-size:13px; }
+  form { display:flex; gap:8px; padding:10px 18px; background:#fff; border-top:1px solid var(--line); }
+  input { flex:1; padding:10px; border:1px solid #ccc; border-radius:8px; font:inherit; }
+  button { padding:10px 16px; border:0; border-radius:8px; background:var(--ink); color:#fff; font:inherit; cursor:pointer; }
+  .hint { font-size:12px; color:var(--muted); padding:0 18px 8px; background:#fff; }
+</style>
+</head>
+<body>
+<header><strong>Le Salon</strong><span id="users"></span><span id="queue"></span></header>
+<main id="log"></main>
+<div>
+  <form id="f"><input id="q" placeholder="Choisissez un pseudo…" autocomplete="off"><button>Envoyer</button></form>
+  <div class="hint">Interpellez l'IA avec <b>@ia</b> · <b>/stop</b> arrête votre question · <b>/resume</b> synthétise le fil</div>
+</div>
+<script type="module">  const $ = (s) => document.querySelector(s);
+  const log = $("#log");
+  const iaBubbles = new Map();
+  let ws, pseudo = null, retry = 0;
+
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const push = (node) => { log.append(node); log.scrollTop = log.scrollHeight; return node; };
+
+  function line(from, text) {
+    if (from === "salon") return push(el("div", "line salon", text));
+    const d = el("div", "line");
+    d.append(el("span", "from", from), document.createTextNode(text));
+    push(d);
+  }
+
+  function summary(s) {
+    const c = el("div", "card");
+    c.append(el("h4", null, "Synthèse du salon"));
+    for (const [titre, items] of [["Sujets", s.sujets], ["Décisions", s.decisions], ["Actions", s.actions.map((a) => `${a.qui} → ${a.quoi}`)]]) {
+      c.append(el("b", null, titre));
+      const ul = el("ul");
+      (items.length ? items : ["—"]).forEach((i) => ul.append(el("li", null, i)));
+      c.append(ul);
+    }
+    push(c);
+  }
+
+  function connect() {
+    ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+    ws.onopen = () => { retry = 0; if (pseudo) ws.send(JSON.stringify({ type: "join", pseudo })); };
+    ws.onclose = () => { line("salon", "Connexion perdue, reconnexion…"); setTimeout(connect, Math.min(10000, 500 * 2 ** retry++)); };
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      switch (m.type) {
+        case "said": if (m.from === "ia") { const b = push(el("div", "ia")); b.append(el("span", "from", "ia"), document.createTextNode(m.text)); } else line(m.from, m.text); break;
+        case "presence": $("#users").textContent = m.users.join(" · "); break;
+        case "info": line("salon", m.text); break;
+        case "ia_start": { const b = push(el("div", "ia")); b.append(el("span", "from", "ia")); b.dataset.for = m.for; iaBubbles.set(m.id, b); break; }
+        case "ia_delta": { const b = iaBubbles.get(m.id); if (b) { b.append(document.createTextNode(m.text)); log.scrollTop = log.scrollHeight; } break; }
+        case "ia_done": { const b = iaBubbles.get(m.id); if (b) b.append(el("span", "meta", `pour ${b.dataset.for}${m.tokens ? " · " + m.tokens + " tokens" : ""}${m.cancelled ? " · interrompu" : ""}`)); iaBubbles.delete(m.id); break; }
+        case "ia_queue": $("#queue").style.display = m.size ? "inline" : "none"; $("#queue").textContent = `IA : ${m.size} en file`; break;
+        case "summary": summary(m.data); break;
+        case "error": push(el("div", "err", "⚠️ " + m.message)); break;
+      }
+    };
+  }
+
+  $("#f").onsubmit = (e) => {
+    e.preventDefault();
+    const v = $("#q").value.trim();
+    if (!v || ws.readyState !== WebSocket.OPEN) return;
+    if (!pseudo) { pseudo = v; ws.send(JSON.stringify({ type: "join", pseudo })); $("#q").placeholder = "Votre message…"; }
+    else ws.send(JSON.stringify({ type: "say", text: v }));
+    $("#q").value = "";
+  };
+  connect();
+</script>
+</body>
+</html>

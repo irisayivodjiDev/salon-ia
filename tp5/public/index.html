@@ -1,0 +1,82 @@
+<!doctype html>
+<!-- Page fournie : rien à modifier. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TP 5 — Relais WebSocket</title>
+<style>
+  :root { --ink:#1b1f2a; --paper:#f6f3ee; --accent:#e8702a; --muted:#6b7080; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.5 system-ui, sans-serif; background:var(--paper); color:var(--ink); display:flex; flex-direction:column; height:100vh; }
+  header { padding:12px 20px; background:var(--ink); color:#fff; display:flex; justify-content:space-between; align-items:center; }
+  #state { font-size:13px; padding:2px 10px; border-radius:99px; background:#444; }
+  #state.on { background:#2e8b57; } #state.off { background:#b33; }
+  #log { flex:1; overflow:auto; padding:20px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:75%; padding:10px 14px; border-radius:12px; white-space:pre-wrap; }
+  .user { align-self:flex-end; background:var(--accent); color:#fff; }
+  .ia { align-self:flex-start; background:#fff; border:1px solid #ddd; }
+  .meta { font-size:12px; color:var(--muted); margin-top:4px; }
+  form { display:flex; gap:8px; padding:12px 20px; background:#fff; border-top:1px solid #ddd; }
+  input { flex:1; padding:10px; border:1px solid #ccc; border-radius:8px; font:inherit; }
+  button { padding:10px 16px; border:0; border-radius:8px; background:var(--ink); color:#fff; font:inherit; cursor:pointer; }
+  button#stop { background:#b33; } button:disabled { opacity:.4; cursor:default; }
+</style>
+</head>
+<body>
+<header><strong>Relais WebSocket → OpenAI Realtime</strong><span id="state">connexion…</span></header>
+<div id="log"></div>
+<form id="f">
+  <input id="q" placeholder="Votre question…" autocomplete="off">
+  <button id="send">Envoyer</button>
+  <button id="stop" type="button" disabled>Stop</button>
+</form>
+<script type="module">  const $ = (s) => document.querySelector(s);
+  const bubbles = new Map();
+  let ws, retry = 0;
+
+  function add(cls, text) {
+    const el = document.createElement("div");
+    el.className = "msg " + cls;
+    el.textContent = text;
+    $("#log").append(el);
+    el.scrollIntoView({ block: "end" });
+    return el;
+  }
+  function busy(on) { $("#stop").disabled = !on; $("#send").disabled = on; }
+
+  function connect() {
+    ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+    ws.onopen = () => { retry = 0; $("#state").textContent = "connecté"; $("#state").className = "on"; };
+    ws.onclose = () => {
+      $("#state").textContent = "déconnecté"; $("#state").className = "off"; busy(false);
+      setTimeout(connect, Math.min(10000, 500 * 2 ** retry++));
+    };
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === "start") { bubbles.set(m.id, add("ia", "")); busy(true); }
+      else if (m.type === "delta") { const b = bubbles.get(m.id); b.textContent += m.text; b.scrollIntoView({ block: "end" }); }
+      else if (m.type === "done") {
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `${m.ms} ms${m.tokens ? " · " + m.tokens + " tokens" : ""}${m.cancelled ? " · interrompu" : ""}`;
+        bubbles.get(m.id)?.append(meta);
+        bubbles.delete(m.id); busy(false);
+      }
+      else if (m.type === "error") { add("ia", "⚠️ " + m.message); busy(false); }
+    };
+  }
+
+  $("#f").onsubmit = (e) => {
+    e.preventDefault();
+    const text = $("#q").value.trim();
+    if (!text || ws.readyState !== WebSocket.OPEN) return;
+    add("user", text);
+    ws.send(JSON.stringify({ type: "prompt", text }));
+    $("#q").value = "";
+  };
+  $("#stop").onclick = () => ws.send(JSON.stringify({ type: "cancel" }));
+  connect();
+</script>
+</body>
+</html>

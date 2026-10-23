@@ -1,0 +1,44 @@
+{
+  "name": "ia-outil-et-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "L'IA comme Outil et Service — TP Node/TypeScript avec l'API OpenAI (Chat Completions, Responses, Realtime)",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "mock": "tsx mock/mock-openai.ts",
+    "models": "tsx tp1/00-models.ts",
+    "tp1:fetch": "tsx tp1/02-fetch.ts",
+    "tp1:sdk": "tsx tp1/03-sdk.ts",
+    "tp1:chat": "tsx tp1/04-chat-cli.ts",
+    "tp2:stream": "tsx tp2/stream-fetch.ts",
+    "tp2:sdk": "tsx tp2/stream-sdk.ts",
+    "tp3:demo": "tsx tp3/demo.ts",
+    "tp4:extract": "tsx tp4/extract.ts",
+    "tp4:agent": "tsx tp4/agent.ts",
+    "tp5": "tsx tp5/server.ts",
+    "projet": "tsx projet/server.ts",
+    "optA:cache": "tsx optA-couts/01-cache.ts",
+    "optA:batch": "tsx optA-couts/02-batch.ts",
+    "optB:eval": "tsx optB-eval/eval.ts",
+    "optC:agents": "tsx optC-agents/agents.ts",
+    "optD:vision": "tsx optD-multimodal/01-vision.ts",
+    "optD:voix": "tsx optD-multimodal/02-voix.ts",
+    "optD:image": "tsx optD-multimodal/03-image.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.20.0",
+    "openai": "^7.28.0",
+    "ws": "^8.18.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
